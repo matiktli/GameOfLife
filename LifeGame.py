@@ -6,10 +6,11 @@ from model import Holder as hld
 import matplotlib.pyplot as plt
 import time
 
-AREA_SIZE = 50  # HOW_MANY_WE_WANT_TO_SEE
+AREA_SIZE = 100  # HOW_MANY_WE_WANT_TO_SEE
 CELL_SIZE = 5  # SIZE OF SINGLE CELL TO DETERMINE WINDOW SIZE
 WINDOW_SIZE = AREA_SIZE * CELL_SIZE
-TIME = 11000
+TIME = 11111
+ENABLE_RANDOM_EVENTS = False
 AREA_NEW = np.zeros((AREA_SIZE, AREA_SIZE))
 AREA_CURRENT = np.zeros((AREA_SIZE, AREA_SIZE))
 LIFE, DEATH = 1, 0
@@ -20,18 +21,19 @@ DB = hld.Holder("databaseXD")
 
 def main():
     win = gp.GraphWin("GameLife", WINDOW_SIZE, WINDOW_SIZE)
-    stats = plt.plot()
     win.setBackground((gp.color_rgb(0, 0, 0)))
     bckg = gp.Image(gp.Point(WINDOW_SIZE / 2, WINDOW_SIZE / 2), WINDOW_SIZE, WINDOW_SIZE)
     populateAreaRandomly(AREA_CURRENT, AREA_SIZE, 14)
+    l1,_ = countArea(AREA_CURRENT, AREA_SIZE)
     populateImageFromArea(bckg, AREA_CURRENT, CELL_SIZE, AREA_SIZE)
     bckg.draw(win)
     win.getMouse()
     newArea = AREA_CURRENT
     for i in range(0, TIME):
         newArea = evolve(newArea, AREA_SIZE, CELL_SIZE)
-        if i > 1 and i % 20 == 0:
-            newArea = addEventToArea(newArea, AREA_SIZE)
+        if ENABLE_RANDOM_EVENTS:
+            if i > 1 and i % 20 == 0:
+                newArea = addEventToArea(newArea, AREA_SIZE)
         populateImageFromArea(bckg, newArea, CELL_SIZE, AREA_SIZE)
         bckg.undraw()
         start = time.time()
@@ -49,12 +51,34 @@ def main():
         if sumLast < 0.99965:
             LOG.log("STABLE", "[gen: {0}] Reached stable state".format(i))
             break
-        LOG.log("EVOLVING", "[gen: {0}]There is only life percentage: [{1}], in all cells.".format(i, prctg))
+        LOG.log("EVOLVING", "[gen: {0}] Life: [{1}]. Death: [{2}]. Prctg: [{3}]".format(i, life, death, prctg))
         DB.add(i, life, death, prctg)
         time.sleep(0.06)
-
+    DB.plot(X_MAX=TIME, X_MIN=0, Y_MIN=0, Y_MAX=AREA_SIZE*AREA_SIZE)
+    win.getMouse()
     win.close()
 
+def evolve(areaCurrent, areaSize, cellSize):
+    areaN = np.zeros((areaSize, areaSize))
+    for i in range(0, areaSize):
+        for j in range(0, areaSize):
+            # Edges
+            # Count live
+            lifeNeighbours = countNeighboors(areaCurrent, i, j, areaSize)
+            #if (lifeNeighbours == 3 and int(areaCurrent[i,j]) == 1):
+            #    if not (i >= areaSize-1 or i <= 0 or j >= areaSize-1 or j <= 0):
+            #        randX = rd.randrange(-1,2)
+            #        randY = rd.randrange(-1,2)
+            #        areaN[i+randX, j+randY]=1
+            if (lifeNeighbours == 3 and int(areaCurrent[i, j]) == 0):
+                #Ln=3, ==0
+                areaN[i, j] = 1
+            elif (int(areaCurrent[i][j]) == 1 and (lifeNeighbours == 2 or lifeNeighbours == 3)):
+                #==1, lN=2or3
+                areaN[i, j] = 1
+            else:
+                areaN[i, j] = 0
+    return areaN
 
 def draw2ndImageOneByOne(window, imgSecond, area, areaSize, cellSize):
     for i in range(0, areaSize):
@@ -82,6 +106,10 @@ def addEventToArea(area, areaSize, modAdded=0.1, modKilledBaseOnAdded=0.8):
                 lifeCells.append((i, j))
     addCells = int(lifeCells.__len__() * modAdded)
     killCells = int(addCells * modKilledBaseOnAdded)
+    if addCells==0:
+        addCells=1
+    if killCells==0:
+        killCells=1
     LOG.log("EVENT", "Birth: {0}, Death: {1}".format(addCells, killCells))
     # add close to existing?
     counterAdded = 0
@@ -112,6 +140,17 @@ def addEventToArea(area, areaSize, modAdded=0.1, modKilledBaseOnAdded=0.8):
                 counterKilled += 1
     return area
 
+def countArea(area, areaSize):
+    life=0
+    death=0
+    for i in range(0, areaSize):
+        for j in range(0, areaSize):
+            if area[i][j]==1:
+                life+=1
+            else:
+                death+=1
+    return life, death
+
 
 def populateAreaRandomly(area, areaSize, randomSeed=10):
     randomSeed += 5
@@ -131,23 +170,6 @@ def populateAreaSquares(area, areaSize):
                 area[i, j] = 1
             else:
                 area[i, j] = 0
-
-
-def evolve(areaCurrent, areaSize, cellSize):
-    areaN = np.zeros((areaSize, areaSize))
-    for i in range(0, areaSize):
-        for j in range(0, areaSize):
-            # Edges
-            # Count live
-            lifeNeighbours = countNeighboors(areaCurrent, i, j, areaSize)
-            if (lifeNeighbours == 3 and int(areaCurrent[i, j]) == 0):
-                areaN[i, j] = 1
-            elif (int(areaCurrent[i][j]) == 1 and (lifeNeighbours == 2 or lifeNeighbours == 3)):
-                areaN[i, j] = 1
-            else:
-                areaN[i, j] = 0
-    return areaN
-
 
 def countNeighboors(area, x, y, areaSize):
     sum = 0
